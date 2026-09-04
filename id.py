@@ -1,5 +1,7 @@
-import requests, streamlit as st
-st.title("GET MY ID")
+import streamlit as st
+import requests
+
+st.title("GET MY ACCOUNT ID")
 
 APP_ID = "34iSDTby3bmokVzDD1zfg"
 TOKEN = "pat_7e7be64e69fe1920b567bab10a99835ba9a5fab6dcf059bfac5e6272da787002"
