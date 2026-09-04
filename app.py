@@ -1,58 +1,53 @@
-import streamlit as st, websocket, json, random, time
-from datetime import datetime
-st.set_page_config(page_title="MOTHER LIVE", layout="wide")
-APP_ID=st.secrets.get("APP_ID","34iSDTby3bmokVzDD1zfg")
-TOKEN=st.secrets.get("DERIV_TOKEN","")
-if not TOKEN:
-    st.error("Add DERIV_TOKEN in Secrets!"); st.stop()
+import streamlit as st
+import requests
+import websocket
+import json
+import threading
+
+APP_ID = "34iSDTby3bmokVzDD1zfg"
+TOKEN = "pat_7e7be64e69fe1920b567bab10a99835ba9a5fab6dcf059bfac5e6272da787002"
+
 st.title("🔥 MOTHER FEEDER - LIVE DERIV DEMO")
 st.caption(f"App {APP_ID} | R_50 Real Demo Trading")
-if "bal" not in st.session_state:
-    st.session_state.bal=0.0
-    st.session_state.trades=[]
-    st.session_state.last="No trade yet"
-def trade_deriv(pred):
+
+balance_text = st.empty()
+status_text = st.empty()
+
+if "trades" not in st.session_state:
+    st.session_state.trades = 0
+
+st.write(f"Trades\n{st.session_state.trades}")
+st.write(f"Status\nNo trade yet")
+
+st.markdown("### 🧠 Mother: R_50 CALL 93%")
+
+def get_otp_url():
+    headers = {"Deriv-App-ID": APP_ID, "Authorization": f"Bearer {TOKEN}"}
+    r1 = requests.get("https://api.deriv.com/trading/v1/options/accounts", headers=headers)
+    acc_id = r1.json()[0]["account_id"]
+    r2 = requests.post(f"https://api.deriv.com/trading/v1/options/accounts/{acc_id}/otp", headers=headers)
+    ws_url = r2.json()["data"]["url"]
+    return ws_url, acc_id
+
+if st.button("💰 Check Real Balance"):
     try:
-        ws=websocket.create_connection(f"wss://ws.binaryws.com/websockets/v3?app_id={APP_ID}", timeout=10)
-        ws.send(json.dumps({"authorize": TOKEN}))
-        auth=json.loads(ws.recv())
-        if "error" in auth:
-            return f"Auth error: {auth['error']['message']}"
-        st.session_state.bal=auth["authorize"]["balance"]
-        ws.send(json.dumps({"proposal":1,"amount":1,"basis":"stake","contract_type":pred,"currency":"USD","duration":1,"duration_unit":"m","symbol":"R_50"}))
-        prop=json.loads(ws.recv())
-        if "error" in prop:
-            ws.close()
-            return f"Proposal err: {prop['error']['message']}"
-        ws.send(json.dumps({"buy": prop["proposal"]["id"], "price":1}))
-        buy=json.loads(ws.recv())
-        ws.close()
-        if "error" in buy:
-            return f"Buy err: {buy['error']['message']}"
-        return f"✅ BOUGHT {pred} R_50 $1 ID {buy['buy']['contract_id']}"
+        ws_url, acc_id = get_otp_url()
+        st.success(f"Connected! Account: {acc_id}")
+        st.code(ws_url)
+
+        # Now connect to that ws_url
+        def on_message(ws, msg):
+            data = json.loads(msg)
+            if "balance" in data:
+                balance_text.markdown(f"## Deriv Demo Balance\n{data['balance']['balance']}")
+
+        ws = websocket.WebSocketApp(ws_url, on_message=on_message)
+        ws.run_forever()
     except Exception as e:
-        return f"Error {e}"
-c1,c2,c3=st.columns(3)
-c1.metric("Deriv Demo Balance", f"${st.session_state.bal:.2f}" if st.session_state.bal else "Check Balance")
-c2.metric("Trades", len(st.session_state.trades))
-c3.metric("Status", st.session_state.last[:35])
-conf=random.randint(72,93)
-action=random.choice(["CALL","PUT"])
-st.subheader(f"🧠 Mother: R_50 {action} {conf}%")
-colA,colB=st.columns(2)
-with colA:
-    if st.button("💰 Check Real Balance", use_container_width=True):
-        msg=trade_deriv(action)
-        st.session_state.last=msg
-        st.session_state.trades.append(f"{datetime.now().strftime('%H:%M:%S')} {msg}")
-        st.rerun()
-with colB:
-    if st.button(f"🚀 TRADE {action} $1", type="primary", use_container_width=True):
-        msg=trade_deriv(action)
-        st.session_state.last=msg
-        st.session_state.trades.append(f"{datetime.now().strftime('%H:%M:%S')} {msg}")
-        st.rerun()
-st.divider()
-for t in reversed(st.session_state.trades[-20:]):
-    st.text(t)
-st.success(f"Live Token {TOKEN[:6]}... App {APP_ID}")
+        st.error(f"Error: {e}")
+
+if st.button("🚀 TRADE CALL $1"):
+    st.session_state.trades += 1
+    st.write("Placing R_50 CALL $1...")
+
+st.success(f"Live Token pat_7e... App {APP_ID}")
